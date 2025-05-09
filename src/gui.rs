@@ -5,7 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-use crate::state::{load_state, set_wallpaper, Orientation, Rotation, WallpaperState};
+use crate::state::{load_state, set_wallpaper, Orientation, Rotation};
 
 fn list_monitors() -> Vec<String> {
     let output = Command::new("hyprctl")

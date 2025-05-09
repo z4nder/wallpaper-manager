@@ -1,13 +1,16 @@
 [package]
-name = "wallpaper-manager"
-version = "0.1.0"
-edition = "2021"
-authors = ["Seu Nome <email@example.com>"]
-description = "A CLI + GUI wallpaper tool for Hyprland"
-license = "MIT"
-repository = "https://github.com/seunome/wallpaper-manager"
-categories = ["command-line-utilities"]
-keywords = ["hyprland", "wallpaper", "wayland", "gui"]
+name         = "wallpaper-manager"
+version      = "0.1.0"
+authors      = ["Z4nder"]
+edition      = "2021"
+description  = "A wallpaper manager for Hyprland with GUI and multi-monitor support"
+license      = "MIT"
+repository   = "https://github.com/z4nder/wallpaper-manager"
+homepage     = "https://github.com/z4nder/wallpaper-manager"
+documentation= "https://docs.rs/wallpaper-manager"
+readme       = "README.md"
+keywords     = ["wallpaper", "hyprland", "wayland", "swww"]
+categories   = ["application-utility", "configuration"]
 
 [dependencies]
 egui          = "0.27"
