@@ -4,37 +4,37 @@
 
 # Wallpaper Manager
 
-Um gerenciador de wallpapers para Hyprland com suporte a múltiplos monitores, interface gráfica (GUI) e restauração automática do fundo após reinício.
+A wallpaper manager for Hyprland with support for multiple monitors, graphical user interface (GUI), and automatic wallpaper restoration after reboot.
 
 ---
 
-## Funcionalidades
+## Features
 
-- Interface gráfica com seleção de imagens
-- Suporte a múltiplos monitores (`hyprctl`)
-- Integração com `swww`
-- Salvamento da última seleção de wallpaper
-- Subcomando `apply` para reaplicar automaticamente após reinício
+- Graphical interface for selecting images
+- Support for multiple monitors via `hyprctl`
+- Integration with `swww`
+- Saving the last selected wallpaper
+- `apply` subcommand to automatically reapply on reboot
 
 ---
 
-## Requisitos
+## Requirements
 
-- Sessão Wayland (Hyprland, Sway, etc.)
+- Wayland session (Hyprland, Sway, etc.)
 - [`swww`](https://github.com/LabDump/swww)
-- `hyprctl` (Hyprland instalado)
-- Bibliotecas de sistema:
+- `hyprctl` (Hyprland installed)
+- System libraries:
   - `wayland`, `libxkbcommon`, `libX11`, `libGL`, `vulkan-loader`
 
 ---
 
-## Instalação
+## Installation
 
-### Via Nix (recomendado)
+### Via Nix (recommended)
 
 ```bash
 nix run github:z4nder/wallpaper-manager -- gui
-# ou
+# or
 nix profile install github:z4nder/wallpaper-manager
 ```
 
@@ -44,21 +44,21 @@ nix profile install github:z4nder/wallpaper-manager
 cargo install wallpaper-manager
 ```
 
-> Certifique-se de ter as bibliotecas Wayland e o `swww` instalados no sistema.
+> Ensure you have the Wayland libraries and `swww` installed on your system.
 
 ---
 
-## Como usar
+## Usage
 
-### Interface gráfica
+### Graphical Interface
 
 ```bash
 wallpaper-manager gui
 ```
 
-> Navegue pelas imagens em `~/.config/backgrounds` e aplique com um clique.
+> Browse images in `~/.config/backgrounds` and apply with a click.
 
-### Aplicar último wallpaper salvo
+### Apply Last Saved Wallpaper
 
 ```bash
 wallpaper-manager apply
@@ -66,44 +66,44 @@ wallpaper-manager apply
 
 ---
 
-## Execução automática no login
+## Auto-start on Login
 
-Adicione ao seu `~/.config/hypr/hyprland.conf`:
+Add to your `~/.config/hypr/hyprland.conf`:
 
 ```ini
 exec-once = swww-daemon
 exec-once = wallpaper-manager apply
 ```
 
-> Isso garante que o daemon `swww` será iniciado e o wallpaper restaurado ao login.
+> This ensures the `swww` daemon starts and the wallpaper is restored on login.
 
 ---
 
-## Organização dos arquivos
+## File Organization
 
-Por padrão, o programa busca imagens em:
+By default, the program looks for images in:
 
 ```
 ~/.config/backgrounds
 ```
 
-Coloque seus wallpapers nesta pasta. Exemplo:
+Place your wallpapers in this folder. For example:
 
 - `~/.config/backgrounds/meadow.jpg`
 - `~/.config/backgrounds/dark-moon.png`
 
 ---
 
-## Contribuindo
+## Contributing
 
-Contribuições são bem-vindas!
+Contributions are welcome!
 
-- Relate problemas
-- Envie pull requests
-- Sugira melhorias
+- Report issues
+- Submit pull requests
+- Suggest improvements
 
 ---
 
-## Licença
+## License
 
 MIT © 2025 - Z4nder
