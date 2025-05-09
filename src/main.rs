@@ -14,9 +14,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Launch the GUI
     Gui,
-    /// Reapply wallpapers from saved state
     Apply,
 }
 
