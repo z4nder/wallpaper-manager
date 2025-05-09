@@ -10,7 +10,7 @@ homepage     = "https://github.com/z4nder/wallpaper-manager"
 documentation= "https://docs.rs/wallpaper-manager"
 readme       = "README.md"
 keywords     = ["wallpaper", "hyprland", "wayland", "swww"]
-categories   = ["application-utility", "configuration"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 egui          = "0.27"
