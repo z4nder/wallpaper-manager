@@ -1,5 +1,5 @@
-use eframe::egui;
-use egui::{ColorImage, RichText, TextureHandle, TextureOptions};
+use eframe::{self, egui};
+use egui::{Button, Color32, ColorImage, RichText, TextureHandle, TextureOptions, Visuals};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -26,7 +26,7 @@ fn get_state_path() -> PathBuf {
 
 fn load_state() -> WallpaperState {
     let path = get_state_path();
-    if let Ok(data) = std::fs::read_to_string(path) {
+    if let Ok(data) = fs::read_to_string(path) {
         serde_json::from_str(&data).unwrap_or_default()
     } else {
         WallpaperState::default()
@@ -36,10 +36,10 @@ fn load_state() -> WallpaperState {
 fn save_state(state: &WallpaperState) {
     let path = get_state_path();
     if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
+        let _ = fs::create_dir_all(parent);
     }
     if let Ok(json) = serde_json::to_string_pretty(state) {
-        let _ = std::fs::write(path, json);
+        let _ = fs::write(path, json);
     }
 }
 
@@ -48,7 +48,6 @@ fn set_wallpaper(monitor: &str, image_path: &str, state: &mut WallpaperState) {
 
     if let Some(Orientation::Vertical) = state.orientation.get(monitor) {
         let rotated_path = std::env::temp_dir().join("rotated_wallpaper.jpg");
-
         let convert_result = Command::new("convert")
             .args([image_path, "-rotate", "90", rotated_path.to_str().unwrap()])
             .output();
@@ -132,10 +131,19 @@ pub fn run_gui() -> Result<(), eframe::Error> {
     let mut current_orientation: Orientation = Orientation::Horizontal;
     let mut show_orientation_modal: Option<(String, String)> = None;
     let mut new_name = String::new();
-    let mut textures: std::collections::HashMap<PathBuf, TextureHandle> = HashMap::new();
+    let mut textures: HashMap<PathBuf, TextureHandle> = HashMap::new();
 
     let options = eframe::NativeOptions::default();
     eframe::run_simple_native("Wallpaper Manager", options, move |ctx, _| {
+        // 1) Tema customizado
+        ctx.set_visuals(Visuals::dark());
+        let mut style = (*ctx.style()).clone();
+        style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(30, 30, 30);
+        style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(50, 50, 50);
+        style.visuals.widgets.active.bg_fill = Color32::from_rgb(70, 70, 70);
+        style.visuals.selection.bg_fill = Color32::from_rgb(0, 120, 200);
+        ctx.set_style(style);
+
         egui::CentralPanel::default().show(ctx, |ui| {
             let monitors = list_monitors();
             let mut images_dir = dirs::config_dir()
@@ -152,7 +160,16 @@ pub fn run_gui() -> Result<(), eframe::Error> {
 
             let images = list_images(images_dir.to_str().unwrap_or("/tmp"));
 
-            ui.heading("📂 Wallpaper Manager");
+            // Título colorido
+            ui.vertical_centered(|ui| {
+                ui.heading(
+                    RichText::new("📂 Wallpaper Manager")
+                        .color(Color32::from_rgb(255, 255, 255))
+                        .size(28.0),
+                );
+            });
+
+            ui.add_space(10.0);
 
             if ui.button("📥 Import image").clicked() {
                 if let Some(path) = rfd::FileDialog::new().pick_file() {
@@ -162,17 +179,20 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                             Ok(_) => println!("✅ Copied: {:?}", target),
                             Err(err) => eprintln!("❌ Failed to copy to {:?}: {err}", target),
                         }
-                    } else {
-                        eprintln!("❌ Invalid file name: {:?}", path);
                     }
                 }
             }
 
+            ui.separator();
+
             if images.is_empty() {
-                ui.label("⚠️ No images found in ~/.config/backgrounds");
+                ui.centered_and_justified(|ui| {
+                    ui.label("⚠️ No images found in ~/.config/backgrounds");
+                });
                 return;
             }
 
+            // Carrega texturas uma vez
             for image_path in &images {
                 if !textures.contains_key(image_path) {
                     if let Ok(bytes) = fs::read(image_path) {
@@ -191,32 +211,38 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                 }
             }
 
+            // Loop de imagens
             for image in &images {
                 if let Some(path_str) = image.to_str() {
                     ui.horizontal(|ui| {
-                        // 1) PREVIEW: thumbnail fixa de 80×80
                         if let Some(tex) = textures.get(image) {
                             ui.add(egui::Image::new(tex).max_width(200.0).rounding(10.0));
                         } else {
                             ui.add_sized([80.0, 80.0], egui::Label::new("🖼️"));
                         }
 
-                        // 2) conteúdo à direita, em coluna
+                        // Meta-coluna
                         ui.vertical(|ui| {
-                            // 2.1) nome do arquivo
-                            ui.label(RichText::new(path_str).strong());
+                            // Nome do arquivo
+                            ui.label(RichText::new(path_str).color(Color32::LIGHT_GRAY));
 
-                            // 2.2) botões de setar em cada monitor, numa linha só
+                            // Botões de set
                             ui.horizontal_wrapped(|ui| {
                                 for monitor in &monitors {
-                                    let label = if state.applied.get(monitor)
-                                        == Some(&path_str.to_string())
-                                    {
-                                        format!("✅ {}", monitor)
+                                    let is_applied =
+                                        state.applied.get(monitor) == Some(&path_str.to_string());
+                                    let label = if is_applied { "✅ Applied" } else { "Set" };
+                                    let (bg, fg) = if is_applied {
+                                        (Color32::from_rgb(20, 100, 20), Color32::WHITE)
                                     } else {
-                                        format!("Set {}", monitor)
+                                        (Color32::from_rgb(40, 40, 120), Color32::WHITE)
                                     };
-                                    if ui.small_button(&label).clicked() {
+                                    let btn = egui::Button::new(
+                                        RichText::new(format!("{label} {monitor}")).color(fg),
+                                    )
+                                    .fill(bg)
+                                    .rounding(5.0);
+                                    if ui.add(btn).clicked() {
                                         show_orientation_modal =
                                             Some((monitor.clone(), path_str.to_string()));
                                         current_orientation = state
@@ -228,9 +254,15 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                                 }
                             });
 
-                            // 2.3) ações de renomear/deletar
+                            // Rename / Delete
                             ui.horizontal(|ui| {
-                                if ui.small_button("✏️ Rename").clicked() {
+                                let btn_rename = Button::new(
+                                    RichText::new("✏️ Rename")
+                                        .color(Color32::from_rgb(255, 255, 255)),
+                                )
+                                .fill(Color32::from_rgb(200, 180, 50))
+                                .rounding(5.0);
+                                if ui.add(btn_rename).clicked() {
                                     rename_target = Some(image.clone());
                                     new_name = image
                                         .file_name()
@@ -238,16 +270,23 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                                         .to_string_lossy()
                                         .to_string();
                                 }
-                                if ui.small_button("🗑️ Delete").clicked() {
+                                let btn_delete = Button::new(
+                                    RichText::new("🗑️ Delete")
+                                        .color(Color32::from_rgb(255, 255, 255)),
+                                )
+                                .fill(Color32::from_rgb(120, 20, 20))
+                                .rounding(5.0);
+                                if ui.add(btn_delete).clicked() {
                                     delete_target = Some(image.clone());
                                 }
                             });
                         });
                     });
-                    ui.separator(); // separa visualmente cada linha
+                    ui.separator();
                 }
             }
 
+            // Modal de orientação
             if let Some((monitor, image_path)) = show_orientation_modal.clone() {
                 egui::Window::new(format!("Orientation for {monitor}"))
                     .collapsible(false)
@@ -266,20 +305,22 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                             );
                         });
 
-                        if ui.button("Apply").clicked() {
-                            state
-                                .orientation
-                                .insert(monitor.clone(), current_orientation);
-                            set_wallpaper(&monitor, &image_path, &mut state);
-                            show_orientation_modal = None;
-                        }
-
-                        if ui.button("Cancel").clicked() {
-                            show_orientation_modal = None;
-                        }
+                        ui.horizontal(|ui| {
+                            if ui.button("Apply").clicked() {
+                                state
+                                    .orientation
+                                    .insert(monitor.clone(), current_orientation);
+                                set_wallpaper(&monitor, &image_path, &mut state);
+                                show_orientation_modal = None;
+                            }
+                            if ui.button("Cancel").clicked() {
+                                show_orientation_modal = None;
+                            }
+                        });
                     });
             }
 
+            // Modal rename
             if let Some(target) = rename_target.clone() {
                 egui::Window::new("Rename image")
                     .collapsible(false)
@@ -287,19 +328,21 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                         ui.label("New file name:");
                         ui.text_edit_singleline(&mut new_name);
 
-                        if ui.button("Save").clicked() && !new_name.trim().is_empty() {
-                            let new_path = images_dir.join(&new_name);
-                            if fs::rename(&target, new_path).is_ok() {
+                        ui.horizontal(|ui| {
+                            if ui.button("Save").clicked() && !new_name.trim().is_empty() {
+                                let new_path = images_dir.join(&new_name);
+                                if fs::rename(&target, new_path).is_ok() {
+                                    rename_target = None;
+                                }
+                            }
+                            if ui.button("Cancel").clicked() {
                                 rename_target = None;
                             }
-                        }
-
-                        if ui.button("Cancel").clicked() {
-                            rename_target = None;
-                        }
+                        });
                     });
             }
 
+            // Modal delete
             if let Some(target) = delete_target.clone() {
                 egui::Window::new("Confirm deletion")
                     .collapsible(false)
@@ -308,13 +351,15 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                             "Are you sure you want to delete {:?}?",
                             target.file_name()
                         ));
-                        if ui.button("Yes").clicked() {
-                            let _ = fs::remove_file(&target);
-                            delete_target = None;
-                        }
-                        if ui.button("Cancel").clicked() {
-                            delete_target = None;
-                        }
+                        ui.horizontal(|ui| {
+                            if ui.button("Yes").clicked() {
+                                let _ = fs::remove_file(&target);
+                                delete_target = None;
+                            }
+                            if ui.button("Cancel").clicked() {
+                                delete_target = None;
+                            }
+                        });
                     });
             }
         });
