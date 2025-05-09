@@ -1,6 +1,5 @@
 use eframe::egui;
-use egui::{ColorImage, RichText, TextureHandle, TextureOptions, Vec2};
-use epaint::Rounding;
+use egui::{ColorImage, RichText, TextureHandle, TextureOptions};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
