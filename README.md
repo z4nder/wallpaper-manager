@@ -8,6 +8,10 @@ A wallpaper manager for Hyprland with support for multiple monitors, graphical u
 
 ---
 
+<p align="center">
+  <img src="assets/example.png" alt="Wallpaper Manager example" heigth="100%"/>
+</p>
+
 ## Features
 
 - Graphical interface for selecting images
