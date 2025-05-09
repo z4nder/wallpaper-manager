@@ -1,6 +1,6 @@
-// src/main.rs
 mod apply;
 mod gui;
+mod state;
 
 use clap::{Parser, Subcommand};
 

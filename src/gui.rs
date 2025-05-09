@@ -1,92 +1,11 @@
 use eframe::{self, egui};
 use egui::{Button, Color32, ColorImage, RichText, TextureHandle, TextureOptions, Visuals};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-#[derive(Serialize, Deserialize, Default)]
-struct WallpaperState {
-    applied: HashMap<String, String>,
-    orientation: HashMap<String, Orientation>,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
-enum Orientation {
-    Horizontal,
-    Vertical,
-}
-
-fn get_state_path() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("/tmp"))
-        .join("wallpaper-manager/state.json")
-}
-
-fn load_state() -> WallpaperState {
-    let path = get_state_path();
-    if let Ok(data) = fs::read_to_string(path) {
-        serde_json::from_str(&data).unwrap_or_default()
-    } else {
-        WallpaperState::default()
-    }
-}
-
-fn save_state(state: &WallpaperState) {
-    let path = get_state_path();
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    if let Ok(json) = serde_json::to_string_pretty(state) {
-        let _ = fs::write(path, json);
-    }
-}
-
-fn set_wallpaper(monitor: &str, image_path: &str, state: &mut WallpaperState) {
-    let mut final_path = image_path.to_string();
-
-    if let Some(Orientation::Vertical) = state.orientation.get(monitor) {
-        let rotated_path = std::env::temp_dir().join("rotated_wallpaper.jpg");
-        let convert_result = Command::new("convert")
-            .args([image_path, "-rotate", "90", rotated_path.to_str().unwrap()])
-            .output();
-
-        if let Ok(output) = convert_result {
-            if output.status.success() {
-                final_path = rotated_path.to_str().unwrap().to_string();
-            } else {
-                eprintln!(
-                    "❌ Failed to rotate image:\n{}",
-                    String::from_utf8_lossy(&output.stderr)
-                );
-            }
-        } else {
-            eprintln!("❌ Failed to run `convert` to rotate image");
-        }
-    }
-
-    let output = Command::new("swww")
-        .args(["img", "--outputs", monitor, &final_path])
-        .output();
-
-    if let Ok(result) = output {
-        if result.status.success() {
-            println!("✅ Wallpaper set on {monitor}: {final_path}");
-            state
-                .applied
-                .insert(monitor.to_string(), image_path.to_string());
-            save_state(state);
-        } else {
-            eprintln!(
-                "❌ swww failed: {}",
-                String::from_utf8_lossy(&result.stderr)
-            );
-        }
-    } else {
-        eprintln!("❌ Failed to run swww");
-    }
-}
+use crate::state::{load_state, set_wallpaper, Orientation, Rotation, WallpaperState};
 
 fn list_monitors() -> Vec<String> {
     let output = Command::new("hyprctl")
@@ -132,10 +51,10 @@ pub fn run_gui() -> Result<(), eframe::Error> {
     let mut show_orientation_modal: Option<(String, String)> = None;
     let mut new_name = String::new();
     let mut textures: HashMap<PathBuf, TextureHandle> = HashMap::new();
+    let mut current_rotation = Rotation::None;
 
     let options = eframe::NativeOptions::default();
     eframe::run_simple_native("Wallpaper Manager", options, move |ctx, _| {
-        // 1) Tema customizado
         ctx.set_visuals(Visuals::dark());
         let mut style = (*ctx.style()).clone();
         style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(30, 30, 30);
@@ -160,7 +79,6 @@ pub fn run_gui() -> Result<(), eframe::Error> {
 
             let images = list_images(images_dir.to_str().unwrap_or("/tmp"));
 
-            // Título colorido
             ui.vertical_centered(|ui| {
                 ui.heading(
                     RichText::new("📂 Wallpaper Manager")
@@ -192,7 +110,6 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                 return;
             }
 
-            // Carrega texturas uma vez
             for image_path in &images {
                 if !textures.contains_key(image_path) {
                     if let Ok(bytes) = fs::read(image_path) {
@@ -211,7 +128,6 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                 }
             }
 
-            // Loop de imagens
             for image in &images {
                 if let Some(path_str) = image.to_str() {
                     ui.horizontal(|ui| {
@@ -221,12 +137,9 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                             ui.add_sized([80.0, 80.0], egui::Label::new("🖼️"));
                         }
 
-                        // Meta-coluna
                         ui.vertical(|ui| {
-                            // Nome do arquivo
                             ui.label(RichText::new(path_str).color(Color32::LIGHT_GRAY));
 
-                            // Botões de set
                             ui.horizontal_wrapped(|ui| {
                                 for monitor in &monitors {
                                     let is_applied =
@@ -250,11 +163,15 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                                             .get(monitor)
                                             .copied()
                                             .unwrap_or(Orientation::Horizontal);
+                                        current_rotation = state
+                                            .rotation
+                                            .get(monitor)
+                                            .copied()
+                                            .unwrap_or(Rotation::None);
                                     }
                                 }
                             });
 
-                            // Rename / Delete
                             ui.horizontal(|ui| {
                                 let btn_rename = Button::new(
                                     RichText::new("✏️ Rename")
@@ -286,12 +203,11 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                 }
             }
 
-            // Modal de orientação
             if let Some((monitor, image_path)) = show_orientation_modal.clone() {
-                egui::Window::new(format!("Orientation for {monitor}"))
+                egui::Window::new(format!("Configure for {monitor}"))
                     .collapsible(false)
                     .show(ctx, |ui| {
-                        ui.label("Choose orientation:");
+                        ui.label("Orientation:");
                         ui.horizontal(|ui| {
                             ui.radio_value(
                                 &mut current_orientation,
@@ -305,11 +221,27 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                             );
                         });
 
+                        ui.label("Extra rotation:");
+                        egui::ComboBox::from_id_source("rot_cb")
+                            .selected_text(match current_rotation {
+                                Rotation::None => "None",
+                                Rotation::Deg180 => "180°",
+                            })
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut current_rotation, Rotation::None, "None");
+                                ui.selectable_value(
+                                    &mut current_rotation,
+                                    Rotation::Deg180,
+                                    "180°",
+                                );
+                            });
+
                         ui.horizontal(|ui| {
                             if ui.button("Apply").clicked() {
                                 state
                                     .orientation
                                     .insert(monitor.clone(), current_orientation);
+                                state.rotation.insert(monitor.clone(), current_rotation);
                                 set_wallpaper(&monitor, &image_path, &mut state);
                                 show_orientation_modal = None;
                             }
@@ -320,7 +252,6 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                     });
             }
 
-            // Modal rename
             if let Some(target) = rename_target.clone() {
                 egui::Window::new("Rename image")
                     .collapsible(false)
@@ -342,7 +273,6 @@ pub fn run_gui() -> Result<(), eframe::Error> {
                     });
             }
 
-            // Modal delete
             if let Some(target) = delete_target.clone() {
                 egui::Window::new("Confirm deletion")
                     .collapsible(false)

@@ -1,35 +1,6 @@
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
+use crate::state::{load_state, Orientation};
+use std::path::Path;
 use std::process::Command;
-
-#[derive(Serialize, Deserialize, Default)]
-struct WallpaperState {
-    applied: HashMap<String, String>,
-    orientation: HashMap<String, Orientation>,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
-enum Orientation {
-    Horizontal,
-    Vertical,
-}
-
-fn get_state_path() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("/tmp"))
-        .join("wallpaper-manager/state.json")
-}
-
-fn load_state() -> WallpaperState {
-    let path = get_state_path();
-    if let Ok(data) = fs::read_to_string(path) {
-        serde_json::from_str(&data).unwrap_or_default()
-    } else {
-        WallpaperState::default()
-    }
-}
 
 pub fn reapply_saved_wallpapers() {
     let state = load_state();
