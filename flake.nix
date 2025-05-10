@@ -1,68 +1,75 @@
 {
-  description = "Wallpaper Manager (Hyprland) - Local crate flake";
+  description = "Rust-Nix";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
-    flake-utils.url = "github:numtide/flake-utils";
+    flake-parts = {
+      url = "github:hercules-ci/flake-parts";
+      inputs.nixpkgs-lib.follows = "nixpkgs";
+    };
     rust-overlay.url = "github:oxalica/rust-overlay";
+    crate2nix.url = "github:nix-community/crate2nix";
+
+    # Development
+
+    devshell = {
+      url = "github:numtide/devshell";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        overlays = [ (import rust-overlay) ];
-        pkgs = import nixpkgs { inherit system overlays; };
-        rust = pkgs.rust-bin.stable."1.86.0".default;
-      in {
-        packages.default = pkgs.stdenv.mkDerivation {
-          pname = "wallpaper-manager";
-          version = "0.1.0";
-          src = ./.; # 👈 usa o código local
+  nixConfig = {
+    extra-trusted-public-keys = "eigenvalue.cachix.org-1:ykerQDDa55PGxU25CETy9wF6uVDpadGGXYrFNJA3TUs=";
+    extra-substituters = "https://eigenvalue.cachix.org";
+    allow-import-from-derivation = true;
+  };
 
-          nativeBuildInputs = [ rust pkgs.pkg-config pkgs.makeWrapper ];
-          buildInputs = with pkgs; [
-            libxkbcommon
-            wayland
-            wayland-protocols
-            xorg.libX11
-            xorg.libXcursor
-            libGL
-            vulkan-loader
-          ];
+  outputs =
+    inputs @ { self
+    , nixpkgs
+    , flake-parts
+    , rust-overlay
+    , crate2nix
+    , ...
+    }: flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "x86_64-darwin"
+        "aarch64-darwin"
+      ];
 
-          buildPhase = ''
-            export CARGO_HOME=$(mktemp -d)
-            cargo build --release
-          '';
+      imports = [
+        ./nix/rust-overlay/flake-module.nix
+        ./nix/devshell/flake-module.nix
+      ];
 
-          installPhase = ''
-            mkdir -p $out/bin
-            cp target/release/wallpaper-manager $out/bin/
-            wrapProgram $out/bin/wallpaper-manager \
-              --set LD_LIBRARY_PATH "${pkgs.wayland}/lib:${pkgs.libxkbcommon}/lib:${pkgs.xorg.libX11}/lib:${pkgs.libGL}/lib:${pkgs.vulkan-loader}/lib:$LD_LIBRARY_PATH"
-          '';
+      perSystem = { system, pkgs, lib, inputs', ... }:
+        let
+          # If you dislike IFD, you can also generate it with `crate2nix generate` 
+          # on each dependency change and import it here with `import ./Cargo.nix`.
+          cargoNix = inputs.crate2nix.tools.${system}.appliedCargoNix {
+            name = "rustnix";
+            src = ./.;
+          };
+        in
+        rec {
+          checks = {
+            rustnix = cargoNix.rootCrate.build.override {
+              runTests = true;
+            };
+          };
+
+          packages = {
+            rustnix = cargoNix.rootCrate.build;
+            default = packages.rustnix;
+
+            inherit (pkgs) rust-toolchain;
+
+            rust-toolchain-versions = pkgs.writeScriptBin "rust-toolchain-versions" ''
+              ${pkgs.rust-toolchain}/bin/cargo --version
+              ${pkgs.rust-toolchain}/bin/rustc --version
+            '';
+          };
         };
-
-        apps.default = flake-utils.lib.mkApp {
-          drv = self.packages.${system}.default;
-          name = "wallpaper-manager";
-        };
-
-        devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            rust
-            pkg-config
-            libxkbcommon
-            wayland
-            xorg.libX11
-            libGL
-            vulkan-loader
-          ];
-
-          shellHook = ''
-            export LD_LIBRARY_PATH="${pkgs.wayland}/lib:${pkgs.libxkbcommon}/lib:${pkgs.xorg.libX11}/lib:${pkgs.libGL}/lib:${pkgs.vulkan-loader}/lib:$LD_LIBRARY_PATH"
-            echo "🦀 Ambiente pronto: use 'cargo run -- gui'"
-          '';
-        };
-      });
+    };
 }
