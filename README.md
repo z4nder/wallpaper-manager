@@ -34,14 +34,6 @@ A wallpaper manager for Hyprland with support for multiple monitors, graphical u
 
 ## Installation
 
-### Via Nix (recommended)
-
-```bash
-nix run github:z4nder/wallpaper-manager -- gui
-# or
-nix profile install github:z4nder/wallpaper-manager
-```
-
 ### Via Cargo
 
 ```bash
